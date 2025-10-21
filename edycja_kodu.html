@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rzut kulk¹ – reset po 3 trafieniach</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+      touch-action: none;
+    }
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-family: Arial, sans-serif;
+      font-size: 20px;
+      text-align: center;
+      text-shadow: 1px 1px 2px #000;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Rzuty: 9 | Trafienia: 0 / 3</div>
+  <canvas id="gameCanvas" width="1080" height="1920"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const info = document.getElementById('info');
+
+    const GAME_W = 1080;
+    const GAME_H = 1920;
+    let remainingThrows = 9;
+    let hits = 0;
+    const requiredHits = 3;
+
+    // === ŒCIE¯KI DO GRAFIK (mo¿na podmieniæ na w³asne pliki) ===
+    const BALL_IMAGE_PATH = "assets/ball.png";
+    const HOLE_IMAGE_PATH = "assets/hole.png";
+    const BACKGROUND_PATH = "assets/background.jpg";
+
+    // === Wczytywanie grafik ===
+    const ballImg = new Image();
+    const holeImg = new Image();
+    const bgImg = new Image();
+    let ballImgLoaded = false, holeImgLoaded = false, bgImgLoaded = false;
+
+    ballImg.onload = () => ballImgLoaded = true;
+    holeImg.onload = () => holeImgLoaded = true;
+    bgImg.onload = () => bgImgLoaded = true;
+
+    ballImg.src = BALL_IMAGE_PATH;
+    holeImg.src = HOLE_IMAGE_PATH;
+    bgImg.src = BACKGROUND_PATH;
+
+    function resizeCanvas() {
+      const cw = window.innerWidth;
+      const ch = window.innerHeight;
+      const scale = Math.min(cw / GAME_W, ch / GAME_H);
+      canvas.style.width = GAME_W * scale + 'px';
+      canvas.style.height = GAME_H * scale + 'px';
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let startX0 = GAME_W / 2;
+    let startY0 = GAME_H * 0.85;
+
+    let ball = {
+      x: startX0,
+      y: startY0,
+      radius: 40,
+      speedX: 0,
+      speedY: 0,
+      thrown: false
+    };
+
+    const holes = [
+      { x: GAME_W * 0.25, y: GAME_H * 0.15, r: 60 },
+      { x: GAME_W * 0.5,  y: GAME_H * 0.15, r: 60 },
+      { x: GAME_W * 0.75, y: GAME_H * 0.15, r: 60 }
+    ];
+
+    let startX = null, startY = null, dragX = 0, dragY = 0, isDragging = false;
+
+    function startDrag(x, y) {
+      if (!ball.thrown && remainingThrows > 0) {
+        startX = x;
+        startY = y;
+        isDragging = true;
+      }
+    }
+
+    function moveDrag(x, y) {
+      if (isDragging) {
+        dragX = x - startX;
+        dragY = y - startY;
+      }
+    }
+
+    function endDrag() {
+      if (isDragging && !ball.thrown && remainingThrows > 0) {
+        ball.thrown = true;
+        ball.speedX = dragX * 0.05;
+        ball.speedY = dragY * 0.05;
+        remainingThrows--;
+        updateInfo();
+      }
+      isDragging = false;
+      dragX = 0;
+      dragY = 0;
+    }
+
+    function updateInfo() {
+      info.textContent = `Rzuty: ${remainingThrows} | Trafienia: ${hits} / ${requiredHits}`;
+    }
+
+    function update() {
+      if (ball.thrown) {
+        ball.x += ball.speedX;
+        ball.y += ball.speedY;
+        ball.speedY += 0.8; // grawitacja
+
+        // Odbicia od œcian
+        if (ball.x - ball.radius < 0) {
+          ball.x = ball.radius;
+          ball.speedX *= -0.5;
+        }
+        if (ball.x + ball.radius > GAME_W) {
+          ball.x = GAME_W - ball.radius;
+          ball.speedX *= -0.5;
+        }
+        if (ball.y - ball.radius < 0) {
+          ball.y = ball.radius;
+          ball.speedY *= -0.5;
+        }
+
+        // Spadek na dó³
+        if (ball.y + ball.radius > GAME_H * 0.85) {
+          resetBall();
+          if (remainingThrows <= 0 && hits < requiredHits) {
+            setTimeout(() => alert('Koniec gry!'), 300);
+          }
+        }
+      }
+
+      // Trafienie do otworu
+      holes.forEach(h => {
+        const dx = ball.x - h.x;
+        const dy = ball.y - h.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < h.r) {
+          hits++;
+          updateInfo();
+          if (hits >= requiredHits) {
+            setTimeout(() => {
+              alert('?? Wygra³eœ! Gra zaczyna siê od nowa.');
+              resetGame();
+            }, 300);
+          } else {
+            alert('Trafi³eœ!');
+          }
+          resetBall();
+        }
+      });
+    }
+
+    function resetBall() {
+      ball.x = startX0;
+      ball.y = startY0;
+      ball.thrown = false;
+      ball.speedX = 0;
+      ball.speedY = 0;
+    }
+
+    function resetGame() {
+      hits = 0;
+      remainingThrows = 9;
+      resetBall();
+      updateInfo();
+    }
+
+    function drawBackground() {
+      if (bgImgLoaded) {
+        ctx.drawImage(bgImg, 0, 0, GAME_W, GAME_H);
+      } else {
+        const grad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+        grad.addColorStop(0, '#7ec8e3');
+        grad.addColorStop(1, '#ffffff');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+      }
+    }
+
+    function drawHoles() {
+      holes.forEach(h => {
+        if (holeImgLoaded) {
+          ctx.drawImage(holeImg, h.x - h.r, h.y - h.r, h.r * 2, h.r * 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+          ctx.fillStyle = '#000';
+          ctx.fill();
+        }
+      });
+    }
+
+    function drawBall() {
+      if (ballImgLoaded) {
+        ctx.drawImage(ballImg, ball.x - ball.radius, ball.y - ball.radius, ball.radius * 2, ball.radius * 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        const grad = ctx.createRadialGradient(ball.x, ball.y, 10, ball.x, ball.y, ball.radius);
+        grad.addColorStop(0, '#ff6666');
+        grad.addColorStop(1, '#ff0000');
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    function drawString() {
+      if (isDragging) {
+        ctx.beginPath();
+        ctx.moveTo(ball.x, ball.y);
+        ctx.lineTo(ball.x + dragX, ball.y + dragY);
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([10, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, GAME_W, GAME_H);
+      drawBackground();
+      drawHoles();
+      drawBall();
+      drawString();
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Obs³uga myszki i dotyku
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = GAME_W / rect.width;
+      const scaleY = GAME_H / rect.height;
+      if (e.touches) {
+        const touch = e.touches[0];
+        return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+      } else {
+        return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+      }
+    }
+
+    canvas.addEventListener('mousedown', e => { const p = getPos(e); startDrag(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { const p = getPos(e); moveDrag(p.x, p.y); });
+    canvas.addEventListener('mouseup', e => endDrag());
+
+    canvas.addEventListener('touchstart', e => { const p = getPos(e); startDrag(p.x, p.y); });
+    canvas.addEventListener('touchmove', e => { const p = getPos(e); moveDrag(p.x, p.y); });
+    canvas.addEventListener('touchend', e => endDrag());
+
+    updateInfo();
+    gameLoop();
+  </script>
+</body>
+</html>
